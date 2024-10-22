@@ -41,7 +41,7 @@ print(table(so$orig.ident, so$cell.type.l2))
 #                          function for pseudobulk DE                          #
 # ---------------------------------------------------------------------------- #
 
-#' Add annotated subset of non-malignant cells back to original Seurat object
+#' pseudobulk DE
 #' 
 #' @param seurat_object Seurat object containing cells that you want to perform differential expression testing on
 #' @param sample_column Metadata column that contains sample id
