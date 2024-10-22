@@ -5,6 +5,10 @@ library(ggplot2)
 library(Seurat)
 library(data.table)
 library(stringr)
+library(tidyr)
+library(ggplot2)
+library(RColorBrewer)
+library(patchwork)
 
 ## functions for lmm test
 
@@ -129,10 +133,8 @@ so$sample_clust <- paste0(so$sample_id.x, "_", so$cluster_annotations)
 df <- AverageExpression(so, features = sigs$p.EMT, group.by = "sample_clust")
 write.csv(df, file.path(plot_dir, "pEMT_avg_expression.csv"))
 
-library(dplyr)
-library(tidyr)
-library(ggplot2)
-library(RColorBrewer)
+df <- AverageExpression(so, features = c("LAMC2", "TGM3"), group.by = "sample_clust")
+write.csv(df, file.path(plot_dir, "LAMC2_TGM3_avg_expression.csv"))
 
 pal <- brewer.pal(12, "Set3")
 
@@ -166,4 +168,69 @@ p <- ggplot(plot_df, aes(x = gene, y = log_fc, fill = sample)) +
     )
 ggsave(filename = "pEMT_by_gene.pdf", path = plot_dir, width = 11)
 
+
+df <- read.csv("/LAMC2_TGM3_avg_expression.csv", row.names = 1)
+df <- log2(df + 1)
+df <- df[, grepl("edge|core", colnames(df))]
+
+fc_df <- sapply(seq(1,12), function(sample_num) {
+    log_fc <- df[[paste0("SCT.sample_", sample_num, "_edge")]] - df[[paste0("SCT.sample_", sample_num, "_core")]]
+    names(log_fc) <- rownames(df)
+    return (log_fc)
+}) 
+
+fc_df <- as.data.frame(fc_df)
+colnames(fc_df) <- paste0("Sample", seq(1,12))
+fc_df$gene <- rownames(fc_df)
+plot_df <- fc_df %>% 
+    pivot_longer(-gene, names_to = "sample", values_to = "log_fc") %>% 
+    group_by(gene) %>% 
+    mutate(total = sum(log_fc)) %>% 
+    arrange(total)
+plot_df$gene <- factor(plot_df$gene, levels = unique(plot_df$gene))
+plot_df$sample <- factor(plot_df$sample, levels = paste0("Sample", seq(1,12)))
+
+p <- ggplot(plot_df, aes(x = gene, y = log_fc, fill = gene)) +
+    geom_boxplot(alpha = 0.9) +
+    geom_point(size = 2) + 
+    geom_hline(yintercept = 0, linetype = "dashed") +
+    scale_fill_manual(values = pal[1:2]) +
+    theme_classic() +
+    theme(
+        axis.text.x = element_text(angle = 90)
+    ) +
+    ylim(c(-2.8,2.8))
+ggsave(filename = "LAMC2_TGM3_edge_core.pdf", path = plot_dir, width = 6)
+
+df$gene <- rownames(df)
+plot_df2 <- df %>% 
+    pivot_longer(-gene, values_to = "Average_Expression", names_to = "Sample") 
+plot_df2$Region <- sapply(plot_df2$Sample, function(x) {
+    str_split(x, "_")[[1]][3]
+})
+plot_df2$Sample <- sapply(plot_df2$Sample, function(x) {
+    paste0(str_split(x, "_")[[1]][1], "_", str_split(x, "_")[[1]][2])
+})
+
+plots <- list()
+for (curr_gene in unique(plot_df2$gene)) {
+
+    curr_df <- plot_df2 %>% filter(gene == curr_gene)
+    print(curr_gene)
+
+    curr_df$Region <- factor(curr_df$Region, levels = c("edge", "core"))
+    plots[[curr_gene]] <- ggplot(curr_df, aes(x = Region, y = Average_Expression)) +
+        geom_boxplot(aes(fill = Region), alpha = 0.9) +
+        geom_point(aes(group = Sample), size = 2) +
+        geom_line(aes(group = Sample), colour ="black", alpha = 0.3, linewidth = 0.8) +
+        scale_fill_manual(values = pal[1:2]) +
+        theme_classic() +
+        theme(
+            axis.text.x = element_text(angle = 90)
+        ) +
+        stat_compare_means(paired = TRUE, comparisons = list(c("edge", "core")))
+
+}
+plots <- wrap_plots(plots, nrow = 1)
+ggsave(plots, filename = "LAMC2_TGM3_edge_core_paired_by_region.pdf", path = plot_dir, width = 8, height = 6)
 
