@@ -9,6 +9,7 @@ library(tidyr)
 library(ggplot2)
 library(RColorBrewer)
 library(patchwork)
+library(ggpubr)
 
 ## functions for lmm test
 
@@ -202,6 +203,8 @@ p <- ggplot(plot_df, aes(x = gene, y = log_fc, fill = gene)) +
     ylim(c(-2.8,2.8))
 ggsave(filename = "LAMC2_TGM3_edge_core.pdf", path = plot_dir, width = 6)
 
+df <- read.csv("/LAMC2_TGM3_avg_expression.csv", row.names = 1)
+df <- df[, grepl("edge|core", colnames(df))]
 df$gene <- rownames(df)
 plot_df2 <- df %>% 
     pivot_longer(-gene, values_to = "Average_Expression", names_to = "Sample") 
